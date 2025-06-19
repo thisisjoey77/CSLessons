@@ -1,3 +1,6 @@
+//BOJ 28326: 요세푸스 문제 2
+//난이도: 플레2
+
 #include <bits/stdc++.h>
 #define ll long long int
 #define INF 0x3f3f3f3f
