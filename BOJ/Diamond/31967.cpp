@@ -1,8 +1,9 @@
+//BOJ 31967: 오름차순 서브테스크
+//난이도: 다이아 5
+
 #include <bits/stdc++.h>
 #define ll long long int
 using namespace std;
-//BOJ 31967: 오름차순 서브테스크
-//난이도: 다이아5
 
 const ll mx = 260000;
 
