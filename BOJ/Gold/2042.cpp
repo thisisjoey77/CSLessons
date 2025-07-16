@@ -2,6 +2,9 @@
 #define ll long long int
 using namespace std;
 
+//BOJ 2042: 구간 합 구하기
+//난이도: 골드 1
+
 const ll mx = 1000000;
 ll N, M, K;
 ll i, j, k;
