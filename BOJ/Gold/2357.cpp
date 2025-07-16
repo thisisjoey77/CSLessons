@@ -3,6 +3,7 @@
 using namespace std;
 
 //BOJ 2357: 최솟값과 최댓값
+//난이도: 골드 1
 
 const ll mx = 100000;
 const ll segMin = LLONG_MIN, segMax = LLONG_MAX;
