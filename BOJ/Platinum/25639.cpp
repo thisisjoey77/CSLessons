@@ -5,9 +5,6 @@
 #define priqueue priority_queue<pii>
 using namespace std;
 
-//BOJ 25639: 수열과 최대 상승 쿼리
-//난이도: 플레2
-
 struct C{
     ll minVal, maxVal, maxDiff;
 };
@@ -27,9 +24,9 @@ C init(ll start, ll end, ll node) {
     ll mid = (start+end) >> 1;
     C lower = init(start,mid,node<<1);
     C upper = init(mid+1,end,node<<1|1);
-    ll maxVal = max(upper.maxVal, lower.maxVal);
-    ll minVal = min(lower.minVal,upper.minVal);
-    return segTree[node] = {minVal,maxVal,max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
+    return segTree[node] = {min(lower.minVal,upper.minVal),
+                            max(upper.maxVal, lower.maxVal),
+                            max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
 }
 
 C search(ll start, ll end, ll node, ll lBound, ll rBound) {
@@ -38,9 +35,9 @@ C search(ll start, ll end, ll node, ll lBound, ll rBound) {
     ll mid = (start+end) >> 1;
     C lower = search(start,mid,node<<1,lBound,rBound);
     C upper = search(mid+1,end,node<<1|1,lBound,rBound);
-    ll maxVal = max(upper.maxVal, lower.maxVal);
-    ll minVal = min(lower.minVal,upper.minVal);
-    return {minVal,maxVal,max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
+    return {min(lower.minVal,upper.minVal),
+            max(upper.maxVal, lower.maxVal),
+            max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
 }
 
 void update(ll start, ll end, ll node, ll idx, ll val) {
@@ -54,9 +51,9 @@ void update(ll start, ll end, ll node, ll idx, ll val) {
     else update(mid+1,end,node<<1|1,idx,val);
     C lower = segTree[node<<1];
     C upper = segTree[node<<1|1];
-    ll maxVal = max(upper.maxVal, lower.maxVal);
-    ll minVal = min(lower.minVal,upper.minVal);
-    segTree[node] = {minVal,maxVal,max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
+    segTree[node] = {min(lower.minVal,upper.minVal),
+                     max(upper.maxVal, lower.maxVal),
+                     max({lower.maxDiff,upper.maxDiff,upper.maxVal-lower.minVal})};
     return;
 }
 
