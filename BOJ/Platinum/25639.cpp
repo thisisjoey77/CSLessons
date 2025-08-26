@@ -5,6 +5,9 @@
 #define priqueue priority_queue<pii>
 using namespace std;
 
+//BOJ 25639: 수열과 최대 상승 쿼리
+//난이도: 플레2
+
 struct C{
     ll minVal, maxVal, maxDiff;
 };
