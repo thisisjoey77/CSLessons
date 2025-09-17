@@ -29,10 +29,7 @@ ll search(ll start, ll end, ll node, ll lBound, ll rBound) {
     if(rBound<start || end<lBound) return LLONG_MAX;
     if(lBound<=start && end<=rBound) return segTree[node];
     ll mid = (start+end) >> 1;
-    return min(
-        search(start,mid,node<<1,lBound,rBound),
-        search(mid+1,end,node<<1|1,lBound,rBound)
-    );
+    return min(search(start,mid,node<<1,lBound,rBound),search(mid+1,end,node<<1|1,lBound,rBound));
 }
 
 void update(ll start, ll end, ll node, ll idx, ll val) {
@@ -66,9 +63,7 @@ int main() {
     for(i=0;i<N;i++) {
         cur = V[i];
         minVal = search(0,N-1,1,0,cur.second-1);
-        if(minVal>cur.first) {
-            ans ++;
-        }
+        if(minVal>cur.first) ans ++;
         update(0,N-1,1,cur.second,cur.first);
     }
     cout << ans << '\n';
