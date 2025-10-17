@@ -5,6 +5,9 @@
 #define priqueue priority_queue<pii>
 using namespace std;
 
+//BOJ 13925: 수열과 쿼리 13
+//난이도: 다이아5
+
 struct C{
 	ll multiply, add;
 	pair<bool,ll> reset;
