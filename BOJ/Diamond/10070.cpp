@@ -40,9 +40,11 @@ void update(ll start, ll end, ll node, ll lBound, ll rBound, C val) {
 		}
 		return;
 	}
-	segTree[node<<1] = merging(segTree[node<<1],segTree[node]);
-	segTree[node<<1|1] = merging(segTree[node<<1|1],segTree[node]);
-	segTree[node] = nullLeaf;
+    if(!segTree[node].isNull) {
+	    segTree[node<<1] = merging(segTree[node<<1],segTree[node]);
+	    segTree[node<<1|1] = merging(segTree[node<<1|1],segTree[node]);
+	    segTree[node] = nullLeaf;
+    }
 	ll mid = (start+end) >> 1;
 	update(start,mid,node<<1,lBound,rBound,val);
 	update(mid+1,end,node<<1|1,lBound,rBound,val);
@@ -53,9 +55,11 @@ C search(ll start, ll end, ll node, ll idx) {
 	if(idx<start || end<idx) return nullLeaf;
 	if(start==end) return segTree[node];
 	ll mid = (start+end) >> 1;
-	segTree[node<<1] = merging(segTree[node<<1],segTree[node]);
-	segTree[node<<1|1] = merging(segTree[node<<1|1],segTree[node]);
-	segTree[node] = nullLeaf;
+    if(!segTree[node].isNull) {
+	    segTree[node<<1] = merging(segTree[node<<1],segTree[node]);
+	    segTree[node<<1|1] = merging(segTree[node<<1|1],segTree[node]);
+	    segTree[node] = nullLeaf;
+    }
 	if(idx<=mid) return search(start,mid,node<<1,idx);
 	return search(mid+1,end,node<<1|1,idx);
 }
