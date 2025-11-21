@@ -18,8 +18,7 @@ const ll nMx = 100010, mMx = 1000010;
 ll N, M, Q, K;
 ll i, j, k, lastJ, idx;
 bool vis[mMx]={0,};
-ll A[nMx], roots[mMx];
-vector<ll> potentials;
+ll A[nMx], roots[mMx], potentials[mMx]={0,};
 vector<loc> V;
 vector<Node> psegTree(mMx<<2);
 
@@ -95,18 +94,17 @@ int main() {
     		update(1,M,roots[idx],A[i]);
     	}
     }
-    potentials.push_back(0);
     for(i=1;i<=M;i++) {
-    	if(roots[i]!=LLONG_MAX) potentials.push_back(psegTree[roots[i]].val+potentials.back());
-    	else potentials.push_back(M+potentials.back());
+    	if(roots[i]!=LLONG_MAX) potentials[i] = psegTree[roots[i]].val+potentials[i-1];
+    	else potentials[i] = M+potentials[i-1];
     }
     for(i=0;i<Q;i++) {
     	cin >> K;
-    	if(potentials.back()<K) {
+    	if(potentials[M]<K) {
     	    cout << "-1 -1\n";
     	    continue;
     	}
-    	idx = lower_bound(potentials.begin(),potentials.end(),K)-potentials.begin();
+    	idx = lower_bound(potentials,potentials+M,K)-potentials;
     	K -= potentials[idx-1];
     	cout << idx << ' ' << ((roots[idx]==LLONG_MAX) ? K : query(1,M,roots[idx],K)) << '\n';
     }
