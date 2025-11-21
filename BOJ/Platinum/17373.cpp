@@ -66,7 +66,6 @@ ll query(ll start, ll end, ll node, ll target) {
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(0); cout.tie(0);
-    for(i=0;i<mMx;i++) roots[i] = LLONG_MAX;
     cin >> N >> M >> Q;
     for(i=0;i<N;i++) {
     	cin >> A[i];
@@ -76,7 +75,10 @@ int main() {
     	}
     }
     init(1,M,1);
-    for(i=0;i<mMx;i++) vis[i] = false;
+    for(i=0;i<mMx;i++) {
+        vis[i] = false;
+        roots[i] = LLONG_MAX;
+    }
     lastJ = V.size()-1, idx = V[lastJ].val, roots[idx] = 1;
     for(i=N-1;i>=0;i--) {
     	if(i==V[lastJ].loc) {
