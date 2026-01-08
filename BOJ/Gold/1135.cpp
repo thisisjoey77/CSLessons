@@ -4,6 +4,9 @@
 #define priqueue priority_queue<pii>
 using namespace std;
 
+//BOJ 1135: 뉴스 전하기
+//난이도: 골드2
+
 const ll mx = 51;
 ll N;
 ll i, j, k;
