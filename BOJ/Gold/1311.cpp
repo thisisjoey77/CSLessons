@@ -12,15 +12,15 @@ struct C{
 	ll idx, numBits;
 };
 
-const ll mx = (1<<21)|1, nMx = 21;
+const ll mx = (1<<20)|1, nMx = 21;
 ll N;
-ll i, j, k;
+ll i, j, k, nIdx;
 ll sz;
 ll DP[mx], isoBits[nMx], costs[nMx][nMx];
 vector<C> V;
 C cur;
 
-bool sorter(C c1, C c2) {
+bool sorter(const C &c1, const C &c2) {
 	return c1.numBits < c2.numBits;
 }
 
@@ -59,12 +59,11 @@ int main() {
     		cin >> costs[i][j];
     	}
     }
-    ll idx = 1;
+    nIdx = 1;
     for(i=1;i<=N;i++) {
-    	DP[idx] = costs[1][i];
-    	idx<<= 1;
+    	DP[nIdx] = costs[1][i];
+    	nIdx<<= 1;
     }
-    ll nIdx;
     for(i=0;i<(sz-1);i++) {
     	cur = V[i];
     	for(j=1;j<=N;j++) {
