@@ -26,12 +26,12 @@ C merging(const C &lower, const C &upper, ll start, ll end) {
     C ans = defLeaf;
     ll mid = (start+end) >> 1;
     bool upCan = (A[mid]+A[mid+1]<=W), lowCan = (A[N+mid]+A[N+mid+1]<=W);
-    for(ll y=0;y<4;y++) {
-        for(ll x=0;x<4;x++) {
-            ans.minVal[y][x] = lower.minVal[y][3] + upper.minVal[3][x];
-            if(upCan) ans.minVal[y][x] = min(ans.minVal[y][x], lower.minVal[y][1]+upper.minVal[1][x]+1);
-            if(lowCan) ans.minVal[y][x] = min(ans.minVal[y][x], lower.minVal[y][2]+upper.minVal[2][x]+1);
-            if(lowCan && upCan) ans.minVal[y][x] = min(ans.minVal[y][x], lower.minVal[y][0]+upper.minVal[0][x]+2);
+    for(ll l=0;l<4;l++) {
+        for(ll r=0;r<4;r++) {
+            ans.minVal[l][r] = lower.minVal[l][3] + upper.minVal[3][r];
+            if(upCan) ans.minVal[l][r] = min(ans.minVal[l][r], lower.minVal[l][1]+upper.minVal[1][r]+1);
+            if(lowCan) ans.minVal[l][r] = min(ans.minVal[l][r], lower.minVal[l][2]+upper.minVal[2][r]+1);
+            if(lowCan && upCan) ans.minVal[l][r] = min(ans.minVal[l][r], lower.minVal[l][0]+upper.minVal[0][r]+2);
         }
     }
     return ans;
@@ -40,13 +40,13 @@ C merging(const C &lower, const C &upper, ll start, ll end) {
 void setIndi(ll idx, ll node) {
     segTree[node] = defLeaf;
     bool canAdd = (A[idx]+A[N+idx]<=W);
-    for(ll y=0;y<4;y++) {
-        for(ll x=0;x<4;x++) {
-            if((y==0 && x==0) || (y==3 && x==3)) continue;
-            segTree[node].minVal[y][x] = ((y&x)) ? 1 : 0;
+    for(ll l=0;l<4;l++) {
+        for(ll r=0;r<4;r++) {
+            if(!(l|r) || ((l&r)==3)) continue;
+            segTree[node].minVal[l][r] = (l&r) ? 1 : 0;
         }
     }
-    segTree[node].minVal[3][3] = ((canAdd) ? 1:2);
+    segTree[node].minVal[3][3] = (canAdd) ? 1:2;
     return;
 }
 
@@ -83,25 +83,21 @@ ll findBits(ll idx) {
 
 ll process() {
     ll ans = segTree[1].minVal[3][3];
-    for(ll y=0;y<4;y++) {
-        for(ll x=0;x<4;x++) {
-            ans = min(ans,segTree[1].minVal[y][x]+findBits(3^y)+findBits(3^x));
+    for(ll l=0;l<4;l++) {
+        for(ll r=0;r<4;r++) {
+            ans = min(ans,segTree[1].minVal[l][r]+findBits(3^l)+findBits(3^r));
             ll cnt = 0;
-            if((y&x)!=3) {
-                if(!(y&1) && !(x&1)) {
-                    if(A[N+1]+A[N<<1]<=W) cnt ++;
-                    else cnt += 2;
+            if((l&r)!=3) {
+                if(!(l&1) && !(r&1)) {
+                    cnt += (A[N+1]+A[N<<1]<=W) ? 1:2;
                 }
-                else if(!(y&1) || !(x&1)) cnt ++;
-
-                if(!(y&2) && !(x&2)) {
-                    if(A[1]+A[N]<=W) cnt ++;
-                    else cnt += 2;
+                else if(!(l&1) || !(r&1)) cnt ++;
+                if(!(l&2) && !(r&2)) {
+                    cnt += (A[1]+A[N]<=W) ? 1:2;
                 }
-                else if(!(y&2) || !(x&2)) cnt ++;
-
+                else if(!(l&2) || !(r&2)) cnt ++;
             }
-            ans = min(ans, segTree[1].minVal[y][x]+cnt);
+            ans = min(ans, segTree[1].minVal[l][r]+cnt);
         }
     }
     return ans;
