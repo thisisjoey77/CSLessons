@@ -1,0 +1,643 @@
+# Python GUI Feature Summary
+
+This document explains how the Python GUI feature is structured, where the main logic lives, and how the parts interact.
+
+## 1. Mental Model
+
+The Python GUI feature is built around one central idea:
+
+- `widgetTreeState` is the internal UI model.
+- The code editor shows one target source at a time: Python, HTML, or Java.
+- The parser converts Python source into the widget tree.
+- The generator converts the widget tree back into source code.
+- The designer and preview both render from the widget tree.
+
+In practice, the feature moves between these representations:
+
+1. User edits source code.
+2. `useTkinterParser()` parses Python code into widgets.
+3. User edits widgets in Designer.
+4. `useCodeGenerator()` regenerates source from widgets.
+5. `Toolbar` can convert the widget tree into another target language.
+
+## State Flow Diagram
+
+This diagram shows the main ownership boundaries and the two core feedback loops:
+
+- code to widget tree through the parser
+- widget tree to code through the generator
+
+```mermaid
+flowchart TD
+  A[Outer Editor Store\ncode field] --> B[PythonGuiIDE.tsx\nIDEInner]
+  B --> C[sourceCodeState\ncurrent editor buffer]
+  B --> D[targetSourcesState\npython html java snapshots]
+
+  C --> E[CodeEditor.tsx\nuser typing]
+  E --> C
+  E --> D
+
+  C --> F{targetLanguageState}
+  F -->|python| G[useTkinterParser.ts]
+  G --> H[parseTkinterCode()\nparser.ts]
+  H --> I[widgetTreeState\ncanonical UI model]
+  H --> J[windowSizeState]
+  H --> K[rootGridConfigState]
+
+  I --> L[DesignerView.tsx]
+  I --> M[TkinterPreview.tsx]
+  I --> N[useCodeGenerator.ts]
+  J --> N
+  K --> N
+  F --> N
+  D --> N
+  N --> O[generateProjectCode()\nprojectGenerator.ts]
+  O -->|python| P[generateTkinterCode()\ngenerator.ts]
+  O -->|html| Q[generateHtmlCode()]
+  O -->|java| R[generateJavaCode()]
+  P --> C
+  Q --> C
+  R --> C
+  N --> D
+
+  L --> S[useDesignerActions.ts]
+  S --> I
+  S --> T[useUndoRedo.ts]
+  T --> I
+
+  U[Toolbar.tsx\napplyProjectTarget()] --> F
+  U --> D
+  U --> I
+  U --> J
+  U --> K
+  U --> C
+
+  C --> V[useRunCode.ts]
+  F --> V
+  V --> W[/api/run]
+  V --> X[consoleOutputState]
+
+  C --> Y[useLocalStoragePersistence.ts]
+  F --> Y
+  Y --> Z[storage.ts\nlocalStorage]
+```
+
+How to read it:
+
+- `widgetTreeState` is the central design model.
+- `sourceCodeState` is the currently visible code buffer.
+- `targetSourcesState` stores per-target source so each language can preserve its own comments and custom functions.
+- `useTkinterParser()` only feeds the tree from Python source.
+- `useCodeGenerator()` feeds source from the widget tree for the active target.
+- `Toolbar.tsx` is the manual conversion entry point that can update both the widget model and the active source.
+
+## 2. Main Entry Points
+
+### `components/code-editor/CodeEditorView.tsx`
+
+This is where the larger editor chooses to mount the Python GUI experience. When the outer editor switches to Python GUI mode, it renders `PythonGuiIDE`.
+
+### `components/python-gui/PythonGuiIDE.tsx`
+
+This is the feature wrapper.
+
+Important responsibilities:
+
+- Creates the Redux provider used by drag-and-drop logic.
+- Uses the existing app Recoil root instead of creating a separate one.
+- Syncs the Python GUI source code with the outer editor store.
+
+Key logic:
+
+- `IDEInner()`
+- `useLocalStoragePersistence(true)`
+- `setSourceCode(initial)` on mount
+- `setTargetSources((prev) => ({ ...prev, [targetLanguage]: initial }))`
+
+Interaction:
+
+- On mount, it copies the current outer editor code into `sourceCodeState`.
+- When `sourceCodeState` changes later, it writes the code back into the outer editor store.
+
+## 3. The Main IDE Shell
+
+### `components/python-gui/ide/IDELayout.tsx`
+
+This is the master layout for the Python GUI IDE.
+
+It composes the main surfaces:
+
+- `Toolbar`
+- `FileExplorer`
+- `CodeEditor`
+- `DesignerView`
+- `TkinterPreview`
+- `StatusBar`
+
+It does not own the feature logic itself. Its job is to wire the visible panels together.
+
+### `components/python-gui/ide/Toolbar.tsx`
+
+This is the main action bar.
+
+Important responsibilities:
+
+- Run button
+- target conversion selector
+- sidebar toggle
+- preview/designer toggle
+- tutorial button
+- conversion warning dialog
+
+Key function:
+
+- `applyProjectTarget(nextTarget, resetProject)`
+
+What `applyProjectTarget()` does:
+
+1. If converting from Python without reset, it tries to parse the current Python source with `parseTkinterCode(sourceCode)`.
+2. Chooses the next widget tree, window size, and root grid config.
+3. Pulls preserved source for the next target from `targetSourcesState`.
+4. Calls `generateProjectCode()`.
+5. Updates:
+   - `targetLanguageState`
+   - `widgetTreeState`
+   - `windowSizeState`
+   - `rootGridConfigState`
+   - `sourceCodeState`
+   - `targetSourcesState`
+   - `activeFileState`
+   - `fileTreeState`
+
+This function is the core of language conversion.
+
+### `components/python-gui/ide/StatusBar.tsx`
+
+This is a small display layer. It shows cursor and target information. It reflects state but does not control behavior.
+
+## 4. Core State and What Each Atom Means
+
+### `atoms/python-gui/editorAtoms.ts`
+
+This file owns the source-editor side of the feature.
+
+Important atoms:
+
+- `sourceCodeState`: the visible code in the editor
+- `targetLanguageState`: current target, one of `python`, `html`, `java`
+- `targetSourcesState`: preserved source snapshots for each target
+- `activeFileState`: current visible file name like `main.py`, `index.html`, `Main.java`
+- `cursorPositionState`: editor cursor position
+
+Why this matters:
+
+- `sourceCodeState` is the current editor buffer.
+- `targetSourcesState` prevents comments and custom functions from disappearing when switching targets.
+
+### `atoms/python-gui/designerAtoms.ts`
+
+This file owns the design model.
+
+Important atoms:
+
+- `widgetTreeState`: canonical widget model
+- `selectedWidgetIdState`: currently selected widget
+- `designerModeState`: `designer` or `preview`
+- `windowSizeState`: root window size
+- `rootGridConfigState`: row and column weights for the root container
+
+Why this matters:
+
+- `widgetTreeState` is the main internal representation used by the designer, preview, and code generators.
+
+### Other supporting atom files
+
+- `atoms/python-gui/uiAtoms.ts`: panel visibility and mobile tab state
+- `atoms/python-gui/panelAtoms.ts`: splitter sizes and panel dimensions
+- `atoms/python-gui/projectAtoms.ts`: file tree data
+- `atoms/python-gui/consoleAtoms.ts`: run output and errors
+- `atoms/python-gui/tutorialAtoms.ts`: onboarding state
+
+## 5. Code Editor Flow
+
+### `components/python-gui/editor/CodeEditor.tsx`
+
+This is the Monaco editor surface.
+
+Important responsibilities:
+
+- shows the current source from `sourceCodeState`
+- switches syntax highlighting based on `getTargetMonacoLanguage(targetLanguage)`
+- writes user edits back to both:
+  - `sourceCodeState`
+  - `targetSourcesState[targetLanguage]`
+
+Interaction:
+
+- If the user is editing HTML, the HTML snapshot is updated.
+- If the user is editing Java, the Java snapshot is updated.
+- This is what allows per-target comments and custom code to survive switching away and back.
+
+## 6. Python Source Parsing Flow
+
+### `hooks/python-gui/useTkinterParser.ts`
+
+This hook watches source code and updates the widget tree.
+
+Key behavior:
+
+- Runs only when `targetLanguage === "python"`
+- Debounces parsing with `DEBOUNCE_MS = 800`
+- Extracts window geometry immediately from `.geometry("WxH")`
+- Calls `parseTkinterCode(sourceCode)`
+- Updates:
+  - `widgetTreeState`
+  - `windowSizeState`
+  - `rootGridConfigState`
+
+Important details:
+
+- Preserves some designer-only state such as `childLayoutMethod`.
+- Preserves command names when code temporarily contains `command=` without a value.
+- Avoids unnecessary loops by comparing the last parsed widget JSON.
+
+### `lib/python-gui/parser/parser.ts`
+
+This is the actual parser entry point.
+
+Key exported function:
+
+- `parseTkinterCode(code: string): ParseResult`
+
+Key internal function:
+
+- `parseKwargs(raw: string)`
+
+How parsing works:
+
+1. Calls `tokenize(code)` from `lib/python-gui/parser/tokenizer.ts`.
+2. Iterates over tokens.
+3. Builds widget instances from `widget_create` tokens.
+4. Attaches layout data from `layout_call` tokens.
+5. Merges property updates from `config_call` tokens.
+6. Reads row and column weights from `grid_configure` tokens.
+
+Output:
+
+- `widgets`
+- `rootGridConfig`
+
+This is the main code-to-UI path for Python.
+
+## 7. Designer Flow
+
+### `components/python-gui/designer/DesignerView.tsx`
+
+This is the main Designer screen.
+
+Important responsibilities:
+
+- mounts `useCodeGenerator()`
+- renders the widget palette
+- renders the drag-and-drop canvas
+- renders the property panel
+- handles root layout method changes
+- exposes undo/redo buttons and keyboard shortcuts
+
+Key interactions:
+
+- Widget creation starts in `WidgetPalette`
+- Widget manipulation happens in `DesignerCanvas`
+- Property editing happens in `PropertyPanel`
+- All those actions route into `useDesignerActions()`
+- `useCodeGenerator()` observes the updated widget tree and regenerates source code
+
+### `hooks/python-gui/useDesignerActions.ts`
+
+This hook owns the widget editing commands.
+
+Key functions:
+
+- `addWidget(widgetType, isTtk, defaultProps, parentId)`
+- `deleteWidget(id)`
+- `updateWidgetProp(id, key, value)`
+- `updateVarName(id, newVarName)`
+- `moveWidget(id, direction)`
+- `changeLayoutMethod(containerId, method)`
+- `updateLayoutArg(id, key, value)`
+- `pushUndoSnapshot()`
+- `reorderWidget(id, newIndex)`
+- `updateWidgetSize(id, width, height)`
+- `updateGridConfig(containerId, rowWeights, colWeights)`
+- `setWidgetParent(childId, parentId)`
+
+How it works:
+
+- It updates `widgetTreeState` directly.
+- Most user-visible actions push undo history before mutating state.
+- `updateLayoutArg()` and `updateWidgetSize()` are intentionally lightweight because they are used during drag or resize operations.
+
+Important helper:
+
+- `defaultLayoutArgs(method, index)` decides default `pack`, `grid`, or `place` arguments for new widgets.
+
+## 8. Code Generation Flow
+
+### `hooks/python-gui/useCodeGenerator.ts`
+
+This hook watches the widget tree and regenerates source code.
+
+Key behavior:
+
+- Runs only in `designer` mode
+- Uses `widgetTreeState`, `windowSizeState`, and `rootGridConfigState`
+- Calls `generateProjectCode()`
+- Writes the result to:
+  - `sourceCodeState`
+  - `targetSourcesState[targetLanguage]`
+
+Important refs and guards:
+
+- `sourceCodeRef`
+- `activeTargetSourceRef`
+- `prevWidgetsRef`
+- `prevRootGridConfigRef`
+- `prevWindowSizeRef`
+- `modeJustSwitchedRef`
+- `initialLoadRef`
+
+Why the guards exist:
+
+- to avoid generating too early on initial load
+- to avoid wiping out user formatting immediately after mode switches
+- to prevent effect loops while source and widget state are syncing
+
+### `lib/python-gui/codegen/projectGenerator.ts`
+
+This is the multi-target generator.
+
+Key exported function:
+
+- `generateProjectCode(options)`
+
+Main internal branches:
+
+- `generateTkinterCode()` for Python
+- `generateHtmlCode()` for HTML/JS
+- `generateJavaCode()` for Java Swing
+
+Important responsibilities:
+
+- maps the widget tree into target-specific source
+- preserves user code blocks for HTML and Java
+- preserves Python code only when the existing code still looks like Python/Tkinter
+- converts layout information from `layout.args`
+- emits target-specific file content and handler stubs
+
+Examples of important internal helpers in this file:
+
+- `buildHtmlFunctions()`
+- `buildHtmlScriptBlock()`
+- `resolveHtmlUserScript()`
+- `extractMarkedBlock()`
+- `dedentPreservedBlock()`
+- `renderHtmlWidget()`
+- `renderJavaCreateComponent()`
+- `extractLegacyJavaUserCode()`
+
+### `lib/python-gui/codegen/generator.ts`
+
+This file owns the Python-specific generator.
+
+Important functions include:
+
+- `generateTkinterCode()`
+- `generateVarName()`
+
+Responsibility:
+
+- turns widgets into Python Tkinter source
+- inserts managed code blocks
+- preserves user-authored Python code around those blocks
+
+### `lib/python-gui/codegen/targets.ts`
+
+This file defines target metadata.
+
+Important exports:
+
+- `PYTHON_GUI_TARGETS`
+- `getTargetLabel()`
+- `getTargetFileName()`
+- `getTargetMonacoLanguage()`
+
+This file keeps naming, labels, and editor language mode consistent.
+
+## 9. Preview Flow
+
+### `components/python-gui/preview/TkinterPreview.tsx`
+
+This is the live visual preview.
+
+Important responsibilities:
+
+- reads `widgetTreeState`
+- reads `selectedWidgetIdState`
+- reads `windowSizeState`
+- reads `rootGridConfigState`
+- simulates the Tkinter window frame
+- recursively renders widgets
+
+Key internal function:
+
+- `renderChildren(parentId)`
+
+How it works:
+
+1. Filters widgets to those that actually have layout.
+2. Splits root widgets from child widgets.
+3. Determines the root layout method.
+4. Uses layout helpers from `lib/python-gui/layout`.
+5. Uses `renderWidget()` from `components/python-gui/preview/widgets`.
+
+Important interaction:
+
+- Preview does not parse or generate code by itself.
+- It only reflects the current widget tree.
+
+## 10. Layout System
+
+### `lib/python-gui/layout/index.ts`
+
+This is the layout dispatcher used by preview rendering.
+
+Important exported helpers:
+
+- `getContainerStyle()`
+- `getItemStyle()`
+
+Supporting files:
+
+- `lib/python-gui/layout/pack.ts`
+- `lib/python-gui/layout/grid.ts`
+- `lib/python-gui/layout/place.ts`
+
+Responsibility:
+
+- convert Tkinter-style layout settings into CSS styles for preview rendering
+
+## 11. Running Code
+
+### `hooks/python-gui/useRunCode.ts`
+
+This hook runs the current source.
+
+Key function:
+
+- `run()`
+
+How it works:
+
+1. Reads `sourceCodeState`.
+2. Reads `targetLanguageState`.
+3. If the target is not Python, it writes an info message to `consoleOutputState` and stops.
+4. If the target is Python, it `POST`s `{ code: sourceCode }` to `/api/run`.
+5. It converts stdout and stderr into console entries.
+
+State it controls:
+
+- `consoleOutputState`
+- local `isRunning`
+
+This is the runtime path for execution.
+
+## 12. Persistence and Restoration
+
+### `hooks/python-gui/useLocalStoragePersistence.ts`
+
+This hook loads and saves IDE state.
+
+Important behavior:
+
+- loads saved state once on mount
+- keeps the active file and file tree aligned with the target language
+- debounces saves with `DEBOUNCE_MS = 500`
+
+State it restores or saves:
+
+- `sourceCodeState`
+- `activeFileState`
+- `targetLanguageState`
+- `designerModeState`
+- `sidebarVisibleState`
+- `panelDimensionsState`
+
+### `lib/python-gui/storage.ts`
+
+This is the SSR-safe localStorage wrapper.
+
+Important functions:
+
+- `loadState()`
+- `saveState(state)`
+
+Important type:
+
+- `PersistedState`
+
+## 13. Undo and Redo
+
+### `hooks/python-gui/useUndoRedo.ts`
+
+This hook is used by `useDesignerActions()`.
+
+Main idea:
+
+- Designer actions push snapshots before important widget tree changes.
+- Undo and redo operate on those snapshots.
+
+How it interacts with the rest of the system:
+
+- Undo restores an earlier `widgetTreeState`.
+- `useCodeGenerator()` sees that widget tree change and regenerates source.
+
+So undo is not only a visual rollback. It also becomes a code rollback through the generator.
+
+## 14. File Explorer and File Naming
+
+### `components/python-gui/explorer/FileExplorer.tsx`
+
+This surface shows the currently active generated file.
+
+Interaction:
+
+- `Toolbar` changes target language.
+- `getTargetFileName()` chooses the correct file name.
+- `activeFileState` and `fileTreeState` are updated.
+- `FileExplorer` reflects the active target file.
+
+This is why the visible file changes between `main.py`, `index.html`, and `Main.java`.
+
+## 15. A Few Important End-to-End Flows
+
+### Flow A: User types Python code
+
+1. `CodeEditor` updates `sourceCodeState`.
+2. `useTkinterParser()` debounces and parses the source.
+3. `parseTkinterCode()` returns widgets and root grid config.
+4. `widgetTreeState` updates.
+5. `DesignerView` and `TkinterPreview` re-render from the new widget tree.
+
+### Flow B: User drags a widget in Designer
+
+1. `DesignerCanvas` calls `updateLayoutArg()` or `updateWidgetSize()` from `useDesignerActions()`.
+2. `widgetTreeState` changes.
+3. `useCodeGenerator()` regenerates source via `generateProjectCode()`.
+4. `sourceCodeState` updates.
+5. `CodeEditor` shows the new generated source.
+
+### Flow C: User converts Python to HTML or Java
+
+1. `Toolbar` opens the conversion dialog.
+2. `applyProjectTarget()` decides whether to continue or reset.
+3. It parses current Python if needed.
+4. It calls `generateProjectCode()` for the next target.
+5. It stores the generated code in `sourceCodeState` and `targetSourcesState[nextTarget]`.
+6. It switches file name and target metadata.
+
+### Flow D: User switches back to a previous target
+
+1. `Toolbar` reads the snapshot from `targetSourcesState`.
+2. The generator uses that existing target source when rebuilding.
+3. Preserved comments and custom functions stay with their own target.
+
+## 16. Which File Should You Open First?
+
+If you want to understand the feature quickly, read files in this order:
+
+1. `components/python-gui/PythonGuiIDE.tsx`
+2. `components/python-gui/ide/IDELayout.tsx`
+3. `components/python-gui/ide/Toolbar.tsx`
+4. `hooks/python-gui/useCodeGenerator.ts`
+5. `hooks/python-gui/useTkinterParser.ts`
+6. `hooks/python-gui/useDesignerActions.ts`
+7. `lib/python-gui/codegen/projectGenerator.ts`
+8. `lib/python-gui/parser/parser.ts`
+9. `components/python-gui/designer/DesignerView.tsx`
+10. `components/python-gui/preview/TkinterPreview.tsx`
+
+That order gives you the shell, the state transitions, the conversion pipeline, and then the two main UI surfaces.
+
+## 17. Short Summary
+
+The Python GUI feature has three main cores:
+
+- the widget tree model in Recoil
+- the parser/generator pair that syncs between widgets and code
+- the IDE shell that lets the user edit, design, preview, convert, run, and persist projects
+
+If you remember one rule, remember this:
+
+- Python source is the parseable input.
+- `widgetTreeState` is the canonical design model.
+- the generators are the output path for Python, HTML, and Java.
